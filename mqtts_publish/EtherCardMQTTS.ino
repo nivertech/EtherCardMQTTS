@@ -41,10 +41,18 @@
 #define MQTTS_DEBUG_PRINTLN(str)
 #endif
 
+#define NIBBLE_TO_HEXCHAR(nibble) \
+  ({ \
+      byte n = nibble & 0xF; \
+      (n < 0xA) ? ('0' + n) : ('A' + n - 10); \
+  })
+
 
 EtherCardMQTTS::EtherCardMQTTS()
 {
 }
+
+
 
 void EtherCardMQTTS::connect(const uint8_t* server_ip, word port)
 {
@@ -63,6 +71,8 @@ void EtherCardMQTTS::connect(const uint8_t* server_ip, word port)
     packet->flags = MQTTS_FLAG_CLEAN;
     packet->protocol_id = MQTTS_PROTOCOL_ID;
     packet->duration = 0;
+
+    // Build up the client ID, appending the MAC address
     packet->client_id[0] = 'E';
     packet->client_id[1] = 'C';
     packet->client_id[2] = '-';
@@ -72,17 +82,9 @@ void EtherCardMQTTS::connect(const uint8_t* server_ip, word port)
     packet->client_id[6] = 'T';
     packet->client_id[7] = 'S';
     packet->client_id[8] = '-';
-
-    // FIXME: improve this
     for(int i=0; i<6; i++) {
-        String hex = String(ether.mymac[i], HEX);
-        if (hex.length() == 2) {
-            packet->client_id[9+(i*2)+0] = hex[0];
-            packet->client_id[9+(i*2)+1] = hex[1];
-        } else {
-            packet->client_id[9+(i*2)+0] = '0';
-            packet->client_id[9+(i*2)+1] = hex[0];
-        }
+        packet->client_id[9 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i] >> 4);
+        packet->client_id[10 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i]);
     }
 
     packet->length = 6 + 21;
@@ -135,4 +137,3 @@ word EtherCardMQTTS::packetLoop(word plen)
         return ether.packetLoop(plen);
     }
 }
-
