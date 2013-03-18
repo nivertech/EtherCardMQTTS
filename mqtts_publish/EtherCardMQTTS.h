@@ -80,6 +80,17 @@
 
 #define MQTTS_PROTOCOL_ID  (0x01)
 
+#define MQTTS_LEN_P        (0x00)
+#define MQTTS_TYPE_P       (0x01)
+
+
+enum {
+  MQTTS_STATE_DISCONNECTED,
+  MQTTS_STATE_WAIT_CONNACK,
+  MQTTS_STATE_WAIT_REGACK,
+  MQTTS_STATE_CONNECTED,
+  MQTTS_STATE_ERROR
+};
 
 class EtherCardMQTTS {
 private:
@@ -90,11 +101,14 @@ private:
 public:
   EtherCardMQTTS();
 
-  void connect(const uint8_t* server_ip, word port=MQTTS_PORT_DEFAULT);
+  void setServer(const uint8_t* server_ip, word port=MQTTS_PORT_DEFAULT);
 
   void processPacket(byte *buf, word len);
   word packetLoop(word plen);
 
+protected:
+
+  void sendConnect();
 };
 
 typedef struct {
@@ -105,5 +119,6 @@ typedef struct {
   word duration;
   char client_id[21];
 } connect_packet_t;
+
 
 #endif

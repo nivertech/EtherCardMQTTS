@@ -38,13 +38,8 @@ void setup(void)
     ether.printIp("My IP: ", ether.myip);
     ether.printIp("GW IP: ", ether.gwip);
 
-    /* Wait for MAC address of the gateway */
-    while (!ether.isLinkUp() || ether.clientWaitingGw())
-      ether.packetLoop(ether.packetReceive());
-    Serial.println("Gateway found");
-
-    /* Connect to MQTT-S server */
-    mqtts.connect(server);
+    /* Set the MQTT-S server address */
+    mqtts.setServer(server);
 
     return;
 }

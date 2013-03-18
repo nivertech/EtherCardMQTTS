@@ -50,20 +50,21 @@
 
 EtherCardMQTTS::EtherCardMQTTS()
 {
+    this->state = MQTTS_STATE_DISCONNECTED;
 }
 
 
+void EtherCardMQTTS::setServer(const uint8_t* server_ip, word port)
+{
+    memcpy(this->server_ip, server_ip, 4);
+    this->port = port;
+}
 
-void EtherCardMQTTS::connect(const uint8_t* server_ip, word port)
+void EtherCardMQTTS::sendConnect()
 {
     connect_packet_t *packet = (connect_packet_t*)(ether.buffer + UDP_DATA_P);
 
-    memcpy(this->server_ip, server_ip, 4);
-    this->port = port;
-
-#ifdef MQTTS_DEBUG
-    EtherCard::printIp("Server: ", this->server_ip);
-#endif
+    MQTTS_DEBUG_PRINTLN("Sending CONNECT");
 
     EtherCard::udpPrepare(this->port, this->server_ip, this->port);
 
@@ -92,6 +93,8 @@ void EtherCardMQTTS::connect(const uint8_t* server_ip, word port)
     EtherCard::udpTransmit(packet->length);
 
     Serial.println("CONNECT sent");
+    
+    this->state = MQTTS_STATE_WAIT_CONNACK;
 }
 
 
@@ -105,13 +108,26 @@ void EtherCardMQTTS::processPacket(byte *buf, word len)
     } else if (len > 0xFF) {
         MQTTS_DEBUG_PRINTLN("Error: MQTT-S packet is too big");
         return;
-    } else if (len != buf[0]) {
+    } else if (len != buf[MQTTS_LEN_P]) {
         MQTTS_DEBUG_PRINTLN("Error: MQTT-S length header does not match packet length");
         return;
     }
 
-    Serial.print("Packet type: 0x");
-    Serial.println(buf[1], HEX);
+    if (buf[MQTTS_TYPE_P] == MQTTS_TYPE_CONNACK && this->state == MQTTS_STATE_WAIT_CONNACK) {
+        if (buf[2] == 0) {
+            Serial.println("Successfully connected!");
+        } else {
+            MQTTS_DEBUG_PRINTLN("Error: non-zero return code");
+            this->state = MQTTS_STATE_ERROR;
+        }
+    } else {
+#ifdef MQTTS_DEBUG
+        Serial.print("Unhanded type: 0x");
+        Serial.print(buf[MQTTS_TYPE_P], HEX);
+        Serial.print(" while in state: ");
+        Serial.println(this->state, DEC);
+#endif
+    }
 }
 
 word EtherCardMQTTS::packetLoop(word plen)
@@ -132,6 +148,11 @@ word EtherCardMQTTS::packetLoop(word plen)
         word len = ((word)pb[UDP_LEN_H_P] << 8) + pb[UDP_LEN_L_P] - UDP_HEADER_LEN;
         this->processPacket(&pb[UDP_DATA_P], len);
         return 0;
+    } else if (this->state == MQTTS_STATE_DISCONNECTED && plen == 0 &&
+              ether.isLinkUp() && !ether.clientWaitingGw())
+    {
+        // Try and connect
+        this->sendConnect();
     } else {
         // Otherwise process using the EtherCard packet handler
         return ether.packetLoop(plen);
