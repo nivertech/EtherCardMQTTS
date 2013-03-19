@@ -80,9 +80,6 @@
 
 #define MQTTS_PROTOCOL_ID  (0x01)
 
-#define MQTTS_LEN_P        (0x00)
-#define MQTTS_TYPE_P       (0x01)
-
 
 enum {
   MQTTS_STATE_DISCONNECTED,
@@ -108,17 +105,8 @@ public:
 
 protected:
 
-  void sendConnect();
+  void sendConnect(byte *buf);
 };
-
-typedef struct {
-  byte length;
-  byte type;
-  byte flags;
-  byte protocol_id;
-  word duration;
-  char client_id[21];
-} connect_packet_t;
 
 
 #endif

@@ -60,40 +60,41 @@ void EtherCardMQTTS::setServer(const uint8_t* server_ip, word port)
     this->port = port;
 }
 
-void EtherCardMQTTS::sendConnect()
 {
-    connect_packet_t *packet = (connect_packet_t*)(ether.buffer + UDP_DATA_P);
 
+void EtherCardMQTTS::sendConnect(byte* buf)
+{
     MQTTS_DEBUG_PRINTLN("Sending CONNECT");
 
     EtherCard::udpPrepare(this->port, this->server_ip, this->port);
 
-    packet->type = MQTTS_TYPE_CONNECT;
-    packet->flags = MQTTS_FLAG_CLEAN;
-    packet->protocol_id = MQTTS_PROTOCOL_ID;
-    packet->duration = 0;
+    buf[1] = MQTTS_TYPE_CONNECT;
+    buf[2] = MQTTS_FLAG_CLEAN;
+    buf[3] = MQTTS_PROTOCOL_ID;
+    buf[4] = 0x00;                // Duration High
+    buf[5] = 0x00;                // Duration Low
 
     // Build up the client ID, appending the MAC address
-    packet->client_id[0] = 'E';
-    packet->client_id[1] = 'C';
-    packet->client_id[2] = '-';
-    packet->client_id[3] = 'M';
-    packet->client_id[4] = 'Q';
-    packet->client_id[5] = 'T';
-    packet->client_id[6] = 'T';
-    packet->client_id[7] = 'S';
-    packet->client_id[8] = '-';
+    buf[6] = 'E';
+    buf[7] = 'C';
+    buf[8] = '-';
+    buf[9] = 'M';
+    buf[10] = 'Q';
+    buf[11] = 'T';
+    buf[12] = 'T';
+    buf[13] = 'S';
+    buf[14] = '-';
     for(int i=0; i<6; i++) {
-        packet->client_id[9 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i] >> 4);
-        packet->client_id[10 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i]);
+        buf[15 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i] >> 4);
+        buf[16 + (2*i)] = NIBBLE_TO_HEXCHAR(ether.mymac[i]);
     }
 
-    packet->length = 6 + 21;
+    buf[0] = 6 + 21;
 
-    EtherCard::udpTransmit(packet->length);
+    EtherCard::udpTransmit(buf[0]);
 
     Serial.println("CONNECT sent");
-    
+
     this->state = MQTTS_STATE_WAIT_CONNACK;
 }
 
@@ -108,14 +109,14 @@ void EtherCardMQTTS::processPacket(byte *buf, word len)
     } else if (len > 0xFF) {
         MQTTS_DEBUG_PRINTLN("Error: MQTT-S packet is too big");
         return;
-    } else if (len != buf[MQTTS_LEN_P]) {
+    } else if (len != buf[0]) {
         MQTTS_DEBUG_PRINTLN("Error: MQTT-S length header does not match packet length");
         return;
     }
 
-    if (buf[MQTTS_TYPE_P] == MQTTS_TYPE_CONNACK && this->state == MQTTS_STATE_WAIT_CONNACK) {
+    if (buf[1] == MQTTS_TYPE_CONNACK && this->state == MQTTS_STATE_WAIT_CONNACK) {
         if (buf[2] == 0) {
-            Serial.println("Successfully connected!");
+            this->sendRegister(buf);
         } else {
             MQTTS_DEBUG_PRINTLN("Error: non-zero return code");
             this->state = MQTTS_STATE_ERROR;
@@ -123,7 +124,7 @@ void EtherCardMQTTS::processPacket(byte *buf, word len)
     } else {
 #ifdef MQTTS_DEBUG
         Serial.print("Unhanded type: 0x");
-        Serial.print(buf[MQTTS_TYPE_P], HEX);
+        Serial.print(buf[1], HEX);
         Serial.print(" while in state: ");
         Serial.println(this->state, DEC);
 #endif
@@ -133,7 +134,7 @@ void EtherCardMQTTS::processPacket(byte *buf, word len)
 word EtherCardMQTTS::packetLoop(word plen)
 {
     byte* pb = ether.buffer;
-    byte port_h = (this->port >> 8);
+    byte port_h = this->port >> 8;
     byte port_l = this->port & 0xFF;
 
     // Does the packet look like a MQTT-S UDP packet?
@@ -145,14 +146,14 @@ word EtherCardMQTTS::packetLoop(word plen)
         pb[UDP_DST_PORT_H_P] == port_h &&
         pb[UDP_DST_PORT_L_P] == port_l)
     {
-        word len = ((word)pb[UDP_LEN_H_P] << 8) + pb[UDP_LEN_L_P] - UDP_HEADER_LEN;
+        word len = word(pb[UDP_LEN_H_P], pb[UDP_LEN_L_P]) - UDP_HEADER_LEN;
         this->processPacket(&pb[UDP_DATA_P], len);
         return 0;
     } else if (this->state == MQTTS_STATE_DISCONNECTED && plen == 0 &&
               ether.isLinkUp() && !ether.clientWaitingGw())
     {
         // Try and connect
-        this->sendConnect();
+        this->sendConnect(ether.buffer + UDP_DATA_P);
     } else {
         // Otherwise process using the EtherCard packet handler
         return ether.packetLoop(plen);
