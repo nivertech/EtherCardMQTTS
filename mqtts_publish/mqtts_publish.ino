@@ -41,6 +41,9 @@ void setup(void)
     /* Set the MQTT-S server address */
     mqtts.setServer(server);
 
+    /* Set the topic to publish to */
+    mqtts.setTopicName(PSTR("test"));
+
     return;
 }
 

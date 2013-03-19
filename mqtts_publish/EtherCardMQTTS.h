@@ -37,6 +37,8 @@
   #include <WProgram.h> // Arduino 0022
 #endif
 
+#include <avr/pgmspace.h>
+
 
 #define MQTTS_PORT_DEFAULT   (1883)
 #define MQTTS_MAX_ETHER_LEN  (ETH_HEADER_LEN + IP_HEADER_LEN + UDP_HEADER_LEN + 255)
@@ -93,12 +95,16 @@ class EtherCardMQTTS {
 private:
   uint8_t server_ip[4];   // ip address of remote gateway
   word port;
+  prog_char* topic_name;
+  word topic_id;
+  word message_id;
   byte state;
 
 public:
   EtherCardMQTTS();
 
   void setServer(const uint8_t* server_ip, word port=MQTTS_PORT_DEFAULT);
+  void setTopicName(prog_char* topic_name);
 
   void processPacket(byte *buf, word len);
   word packetLoop(word plen);
@@ -106,6 +112,7 @@ public:
 protected:
 
   void sendConnect(byte *buf);
+  void sendRegister(byte *buf);
 };
 
 

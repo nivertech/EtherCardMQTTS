@@ -50,6 +50,8 @@
 
 EtherCardMQTTS::EtherCardMQTTS()
 {
+    this->port = MQTTS_PORT_DEFAULT;
+    this->message_id = 1;
     this->state = MQTTS_STATE_DISCONNECTED;
 }
 
@@ -60,7 +62,10 @@ void EtherCardMQTTS::setServer(const uint8_t* server_ip, word port)
     this->port = port;
 }
 
+void EtherCardMQTTS::setTopicName(prog_char* topic_name)
 {
+    this->topic_name = topic_name;
+}
 
 void EtherCardMQTTS::sendConnect(byte* buf)
 {
@@ -98,6 +103,26 @@ void EtherCardMQTTS::sendConnect(byte* buf)
     this->state = MQTTS_STATE_WAIT_CONNACK;
 }
 
+void EtherCardMQTTS::sendRegister(byte* buf)
+{
+    MQTTS_DEBUG_PRINTLN("Sending REGISTER");
+
+    EtherCard::udpPrepare(this->port, this->server_ip, this->port);
+
+    buf[1] = MQTTS_TYPE_REGISTER;
+    buf[2] = 0x00;                  // Topic ID High
+    buf[3] = 0x00;                  // Topic ID Low
+    buf[4] = 0x00;                  // Message ID High
+    buf[5] = 0x01;                  // Message ID Low
+    strcpy_P((char*)&buf[6], this->topic_name);
+    buf[0] = 6 + strlen_P(this->topic_name);
+
+    EtherCard::udpTransmit(buf[0]);
+
+    Serial.println("REGISTER sent");
+
+    this->state = MQTTS_STATE_WAIT_REGACK;
+}
 
 void EtherCardMQTTS::processPacket(byte *buf, word len)
 {
@@ -118,7 +143,17 @@ void EtherCardMQTTS::processPacket(byte *buf, word len)
         if (buf[2] == 0) {
             this->sendRegister(buf);
         } else {
-            MQTTS_DEBUG_PRINTLN("Error: non-zero return code");
+            MQTTS_DEBUG_PRINTLN("Error: non-zero return code in CONNACK");
+            this->state = MQTTS_STATE_ERROR;
+        }
+    } else if (buf[1] == MQTTS_TYPE_REGACK && this->state == MQTTS_STATE_WAIT_REGACK) {
+        if (buf[6] == 0) {
+            // FIXME: check message_id is same as we sent?
+            this->topic_id = word(buf[2], buf[3]);
+            this->state = MQTTS_STATE_CONNECTED;
+            MQTTS_DEBUG_PRINTLN("Connected!");
+        } else {
+            MQTTS_DEBUG_PRINTLN("Error: non-zero return code in REGACK");
             this->state = MQTTS_STATE_ERROR;
         }
     } else {
