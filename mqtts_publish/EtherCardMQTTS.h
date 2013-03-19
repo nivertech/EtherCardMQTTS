@@ -109,6 +109,11 @@ public:
   void processPacket(byte *buf, word len);
   word packetLoop(word plen);
 
+  void publish(const long value, const int base=10);
+
+  void publish(const byte* str, byte len);
+  void publish(const char* str);
+
 protected:
 
   void sendConnect(byte *buf);

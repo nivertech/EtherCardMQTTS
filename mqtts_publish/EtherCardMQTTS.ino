@@ -31,6 +31,7 @@
 #include "EtherCardMQTTS.h"
 #include <EtherCard.h>
 
+#include <stdlib.h>
 
 // Uncomment to enable debugging of EtherCardMQTTS
 #define MQTTS_DEBUG   1
@@ -122,6 +123,42 @@ void EtherCardMQTTS::sendRegister(byte* buf)
     MQTTS_DEBUG_PRINTLN("REGISTER sent");
 
     this->state = MQTTS_STATE_WAIT_REGACK;
+}
+
+void EtherCardMQTTS::publish(const char* str)
+{
+    this->publish((byte*)str, strlen(str));
+}
+
+void EtherCardMQTTS::publish(const long value, const int base)
+{
+    char str[33];
+    ltoa(value, str, base);
+    this->publish((byte*)str, strlen(str));
+}
+
+void EtherCardMQTTS::publish(const byte* data, byte len)
+{
+    byte *buf = ether.buffer + UDP_DATA_P;
+
+    if (this->state == MQTTS_STATE_CONNECTED) {
+        MQTTS_DEBUG_PRINTLN("Sending PUBLISH");
+
+        EtherCard::udpPrepare(this->port, this->server_ip, this->port);
+
+        buf[1] = MQTTS_TYPE_PUBLISH;
+        buf[2] = 0x00;                   // Flags
+        buf[3] = this->topic_id >> 8;    // Topic ID High
+        buf[4] = this->topic_id && 0xFF; // Topic ID Low
+        buf[5] = 0x00;                   // Message ID High
+        buf[6] = 0x00;                   // Message ID Low
+        memcpy((char*)&buf[7], data, len);
+        buf[0] = 7 + len;
+
+        EtherCard::udpTransmit(buf[0]);
+
+        MQTTS_DEBUG_PRINTLN("PUBLISH sent");
+    }
 }
 
 void EtherCardMQTTS::processPacket(byte *buf, word len)

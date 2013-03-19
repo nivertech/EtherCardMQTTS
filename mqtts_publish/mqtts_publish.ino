@@ -13,6 +13,7 @@ uint8_t gateway[] = { 192, 168, 1, 1 };
 uint8_t subnet[] = { 255, 255, 255, 0 };
 uint8_t server[] = { 192, 168, 1, 1 };
 byte Ethernet::buffer[BUF_SIZE];
+uint32_t timer = 0;
 
 // remote website name
 char gateway_host[] PROGMEM = "test.mosquitto.org";
@@ -52,4 +53,12 @@ void loop(void)
 {
     word len = ether.packetReceive();
     mqtts.packetLoop(len);
+
+    // publish time every 2 seconds
+    if (millis() > timer) {
+        timer = millis() + 2000;
+        mqtts.publish(
+          millis()
+        );
+    }
 }
