@@ -98,7 +98,7 @@ void EtherCardMQTTS::sendConnect(byte* buf)
 
     EtherCard::udpTransmit(buf[0]);
 
-    Serial.println("CONNECT sent");
+    MQTTS_DEBUG_PRINTLN("CONNECT sent");
 
     this->state = MQTTS_STATE_WAIT_CONNACK;
 }
@@ -119,7 +119,7 @@ void EtherCardMQTTS::sendRegister(byte* buf)
 
     EtherCard::udpTransmit(buf[0]);
 
-    Serial.println("REGISTER sent");
+    MQTTS_DEBUG_PRINTLN("REGISTER sent");
 
     this->state = MQTTS_STATE_WAIT_REGACK;
 }
